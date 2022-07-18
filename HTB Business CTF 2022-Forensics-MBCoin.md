@@ -142,8 +142,12 @@ Finally, at this point, I had a valid www1.dll and www4.dll.
 Ended up opening Ghidra to see what each dll does.  In www1.dll there was a note 'Are you sure this was the DLL loaded on the system?' which I had noticed earlier by browsing the binary.  This file was copied over and never run.
 
 In www4.dll, I browsed to the ldr function, and found the flag:
+https://i.imgur.com/Xk1yMVV.png
 https://i.imgur.com/Fbxr43I.png
 
-Overall this challenge took me way longer than expected, as first I could not find the contents of pin.vbs since I was using linux unzip instead of 7-zip, and all my other attempts with oletools did not show it either, until I was able to see it in any.run (sandbox).
+Overall this challenge took a bit longer than expected, as first I could not find the contents of pin.vbs since I was using linux unzip instead of 7-zip, and all my other attempts with oletools did not show it either, until I was able to find it when unzipping with 7-zip.  Also, I did find it in any.run (sandbox).  The 2nd part that caught me up was assuming the keys were the same for each file and then not being able to load DLL file in Ghidra.
 
+This was a group effort, thanks to my team for their parts in solving this challenge!
+
+Flag:
 HTB{wH4tS_4_sQuirReLw4fFl3?}

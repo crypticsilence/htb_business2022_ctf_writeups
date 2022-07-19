@@ -69,12 +69,15 @@ RandomSessionKey = RC4(KeyExchangeKey,EncryptedSessionKey)
 # RandomSessionKey is 4462b99bb21423c29dbb4b4a983fde03
 ```
 
-At first, I tried to figure out the credentials and authentication that was being used. I wasn't even 100% sure it was NTLM, until I drilled down to the SecurityBlob and finally saw it:
+At first, I tried to figure out the credentials and authentication that was being used. I drilled down to the SecurityBlob and it looks to show data for NTLM, but it looks too long to be NTLM:
 
-!(securityblob)[https://github.com/crypticsilence/htb_business2022_ctf_writeups/blob/main/img/rogue-pcap_ntlm.png?raw=true]
+![securityblob](https://github.com/crypticsilence/htb_business2022_ctf_writeups/blob/main/img/rogue-pcap_ntlm.png?raw=true)
+
+This must be NTLMv2.  The NTLM response and NTLMv2 response look to be the same length and value.
 
 Since I really don't know much about this process, tried to dig a bit further and expand my knowledge on the topic.
-The author mentioned MS Protocol Engineer Obaid Farooqi.  Watched some of his @ MS Talk from 2015 (release of win10/svr2016) on SMB 3.1.1 decryption and took some notes:
+
+The author mentioned MS Protocol Engineer Obaid Farooqi is where he learned this process.  Watched some of his @ MS Talk from 2015 (release of win10/svr2016) on SMB 3.1.1 decryption and took some notes:
 [SMB 3.1.1 Encryption and Decryption (with MA) by Obaid Farooqi](https://www.youtube.com/watch?v=aGG7cpLxdfQ)
 
 - Fixed cipher in 3.0x: AES-128-CCM. Not flexible

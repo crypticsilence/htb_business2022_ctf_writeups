@@ -10,21 +10,21 @@ This challenge consists a downloadable file only.  The zip file extracts to one 
 Browsed through the packet capture and found a few things.
 
 Looked at the pcap, and investigated the tcp streams. The first transmission in the file is this connection on port 4444, looks like a reverse shell connection.  It includes some commands run in powershell:
-[4444 cmds](https://github.com/crypticsilence/htb_business2022_ctf_writeups/blob/main/img/rogue-4444_1.png?raw=true)
+![4444 cmds](https://github.com/crypticsilence/htb_business2022_ctf_writeups/blob/main/img/rogue-4444_1.png?raw=true)
 
 Looks like the attacker determined the user is a local admin, then used comsvcs.dll to dump the LSASS security process, to hopefully get some password hashes off this computer.  Then the file is zipped up and sent across FTP to windowsliveupdater.net.  The filename is 3858793632.zip.
 
 Was able to find the file upload sequence in the pcap :
-[ftp login](https://github.com/crypticsilence/htb_business2022_ctf_writeups/blob/main/img/rogue-ftp_login.png?raw=true)
+![ftp login](https://github.com/crypticsilence/htb_business2022_ctf_writeups/blob/main/img/rogue-ftp_login.png?raw=true)
 
 To see the upload data itself, filter for ftp-data : 
-[ftp upload](https://github.com/crypticsilence/htb_business2022_ctf_writeups/blob/main/img/rogue-ftp_data.png?raw=true)
+![ftp upload](https://github.com/crypticsilence/htb_business2022_ctf_writeups/blob/main/img/rogue-ftp_data.png?raw=true)
 
 To save the file to disk, select them all, then use *File - Export Specified Packets - Save*.
 
 ### SMB
 Further down in the capture, I see SMB3 connection to the corporate ConfidentialShare..
-[confidential share](https://github.com/crypticsilence/htb_business2022_ctf_writeups/blob/main/img/rogue-smb_confidential_share.png?raw=true)
+![confidential share](https://github.com/crypticsilence/htb_business2022_ctf_writeups/blob/main/img/rogue-smb_confidential_share.png?raw=true)
 
 It is not easy to decrypt SMB3, as the key is not transmitted in the traffic, but I found a good article:
 
@@ -66,7 +66,7 @@ RandomSessionKey = RC4(KeyExchangeKey,EncryptedSessionKey)
 ```
 
 At first, I tried to figure out the credentials and authentication that was being used. I wasn't even 100% sure it was NTLM, until I drilled down to the SecurityBlob and finally saw it:
-(securityblob)[https://github.com/crypticsilence/htb_business2022_ctf_writeups/blob/main/img/rogue-pcap_ntlm.png?raw=true]
+!(securityblob)[https://github.com/crypticsilence/htb_business2022_ctf_writeups/blob/main/img/rogue-pcap_ntlm.png?raw=true]
 
 Since I really don't know much about this process, tried to dig a bit further and expand my knowledge on the topic.
 The author mentioned MS Protocol Engineer Obaid Farooqi.  Watched some of his @ MS Talk from 2015 (release of win10/svr2016) on SMB 3.1.1 decryption and took some notes:
@@ -79,8 +79,10 @@ The author mentioned MS Protocol Engineer Obaid Farooqi.  Watched some of his @ 
 - Can use ETW tracing thru Message Analyzer - does not use decryption, so it is immune to cipher changes
 - MA uses ETW tracing to capture traffic before it is encrypted and after it is decrypted for inbound
 
-* [Computing the hash value](https://i.imgur.com/XJbNpT4.png)
-* [Deriving secret keys from the hash value](https://i.imgur.com/f6d5euo.png)
+* Computing the hash value
+![computing hash value](https://i.imgur.com/XJbNpT4.png)
+* Deriving secret keys from the hash value
+![deriving keys](https://i.imgur.com/f6d5euo.png)
 
 From the PCAP, I gathered the following data:
 ```
@@ -380,9 +382,9 @@ or:?? backwards?
 OR RSK.. Tried using CORP.local as domain instead:
 1faa3c87435762a0f9f160e83a859b50
 
-Tested with a -verbose and noticed my hash was twice as long as it should have been.. Encoding error I think.  Proved right.
+Tested with a -verbose and noticed my hash was twice as long as it should have been.. Encoding error I think.  Proved correct, quick fix.
 
-Fixed, had to decode ascii to hex properly in the code: 
+Just had to decode ascii to hex properly in the code: 
 ```
 #    password = args.hash
     password = args.hash.decode('hex')
@@ -394,10 +396,11 @@ Tried with the Session ID backwards again, instead of copying the value, used wh
 `0x1500000000a00000`
 
 Actual VOILA!!!  Session decrypted.  Looked and there is a pdf file copied, in the SMB export dialog:
-(file xfer)[https://github.com/crypticsilence/htb_business2022_ctf_writeups/blob/main/img/rogue-smb3_filexfer.png?raw=true]
+!(file xfer)[https://github.com/crypticsilence/htb_business2022_ctf_writeups/blob/main/img/rogue-smb3_filexfer.png?raw=true]
 
 Grabbed it and checked it out, found the flag!
-(pdf and flag)[https://github.com/crypticsilence/htb_business2022_ctf_writeups/blob/main/img/rogue-pdf_document.png?raw=true]
+!(pdf and flag)[https://github.com/crypticsilence/htb_business2022_ctf_writeups/blob/main/img/rogue-pdf_document.png?raw=true]
+
 HTB{n0th1ng_c4n_st4y_un3ncrypt3d_f0r3v3r}
 
 This took a lot longer than I had hoped because of the fact first off I was working with a bad zip file. I think when I extracted the from the ftp-data packets maybe I was missing a few at the bottom, or retransmissions messed it up, or somehow, I messed it up.  This actually happened twice, so I thought for sure I was supposed to use something to fish creds out of this corrupt minidump.  But, the 3rd time I extracted it everything started to come together.  The last part took a little tweaking to get it to work, but I knew I had everything I needed at that point.  Great challenge, lots of fun and a good learning experience!

@@ -1,5 +1,5 @@
 
-# Rogue
+# forensics_rogue
 
 ### Challenge Pretext: 
 SecCorp has reached us about a recent cyber security incident. They are confident that a malicious entity has managed to access a shared folder that stores confidential files. Our threat intel informed us about an active dark web forum where disgruntled employees offer to give access to their employer's internal network for a financial reward. In this forum, one of SecCorp's employees offers to provide access to a low-privileged domain-joined user for 10K in cryptocurrency. Your task is to find out how they managed to gain access to the folder and what corporate secrets did they steal. 
@@ -10,20 +10,24 @@ This challenge consists a downloadable file only.  The zip file extracts to one 
 Browsed through the packet capture and found a few things.
 
 Looked at the pcap, and investigated the tcp streams. The first transmission in the file is this connection on port 4444, looks like a reverse shell connection.  It includes some commands run in powershell:
+
 ![4444 cmds](https://github.com/crypticsilence/htb_business2022_ctf_writeups/blob/main/img/rogue-4444_1.png?raw=true)
 
 Looks like the attacker determined the user is a local admin, then used comsvcs.dll to dump the LSASS security process, to hopefully get some password hashes off this computer.  Then the file is zipped up and sent across FTP to windowsliveupdater.net.  The filename is 3858793632.zip.
 
 Was able to find the file upload sequence in the pcap :
+
 ![ftp login](https://github.com/crypticsilence/htb_business2022_ctf_writeups/blob/main/img/rogue-ftp_login.png?raw=true)
 
 To see the upload data itself, filter for ftp-data : 
+
 ![ftp upload](https://github.com/crypticsilence/htb_business2022_ctf_writeups/blob/main/img/rogue-ftp_data.png?raw=true)
 
 To save the file to disk, select them all, then use *File - Export Specified Packets - Save*.
 
 ### SMB
 Further down in the capture, I see SMB3 connection to the corporate ConfidentialShare..
+
 ![confidential share](https://github.com/crypticsilence/htb_business2022_ctf_writeups/blob/main/img/rogue-smb_confidential_share.png?raw=true)
 
 It is not easy to decrypt SMB3, as the key is not transmitted in the traffic, but I found a good article:
@@ -66,6 +70,7 @@ RandomSessionKey = RC4(KeyExchangeKey,EncryptedSessionKey)
 ```
 
 At first, I tried to figure out the credentials and authentication that was being used. I wasn't even 100% sure it was NTLM, until I drilled down to the SecurityBlob and finally saw it:
+
 !(securityblob)[https://github.com/crypticsilence/htb_business2022_ctf_writeups/blob/main/img/rogue-pcap_ntlm.png?raw=true]
 
 Since I really don't know much about this process, tried to dig a bit further and expand my knowledge on the topic.
@@ -79,9 +84,8 @@ The author mentioned MS Protocol Engineer Obaid Farooqi.  Watched some of his @ 
 - Can use ETW tracing thru Message Analyzer - does not use decryption, so it is immune to cipher changes
 - MA uses ETW tracing to capture traffic before it is encrypted and after it is decrypted for inbound
 
-* Computing the hash value
 ![computing hash value](https://i.imgur.com/XJbNpT4.png)
-* Deriving secret keys from the hash value
+
 ![deriving keys](https://i.imgur.com/f6d5euo.png)
 
 From the PCAP, I gathered the following data:
@@ -253,15 +257,15 @@ Good deal.  So now I have the stuff I need I think finally to build the smb3 key
 
 In recap of the article, the Random Session Key can be calculated by:
 
--Unicode (utf-16le) of password
--MD4 hash of the above (This is also the NTLM Hash of the password)
--Unicode(utf-16le) and Uppercase of Username and Domain/Workgroup together 
--Calculating the ResponseKeyNT via HMAC_MD5(NTLM Hash, Unicode of User/Domain above)
--NTProofStr (can be calculated but not needed as it is present in the PCAP)
--Calculating the KeyExchangeKey via HMAC_MD5(ResponseKeyNT,NTProofStr)
--Decrypt the Encrypted Session Key via RC4 and the Key Exchange Key to finally get the Random Session Key
+- Unicode (utf-16le) of password
+- MD4 hash of the above (This is also the NTLM Hash of the password)
+- Unicode(utf-16le) and Uppercase of Username and Domain/Workgroup together 
+- Calculating the ResponseKeyNT via HMAC_MD5(NTLM Hash, Unicode of User/Domain above)
+- NTProofStr (can be calculated but not needed as it is present in the PCAP)
+- Calculating the KeyExchangeKey via HMAC_MD5(ResponseKeyNT,NTProofStr)
+- Decrypt the Encrypted Session Key via RC4 and the Key Exchange Key to finally get the Random Session Key
 
-And, the guy was nice enough to write up the code to do it, and call it random_session_key_calc.py.
+And, the guy was nice enough to write up the code to do it, called random_session_key_calc.py.
 
 ```
 import hashlib
@@ -396,11 +400,11 @@ Tried with the Session ID backwards again, instead of copying the value, used wh
 `0x1500000000a00000`
 
 Actual VOILA!!!  Session decrypted.  Looked and there is a pdf file copied, in the SMB export dialog:
-!(file xfer)[https://github.com/crypticsilence/htb_business2022_ctf_writeups/blob/main/img/rogue-smb3_filexfer.png?raw=true]
+![file xfer](https://github.com/crypticsilence/htb_business2022_ctf_writeups/blob/main/img/rogue-smb3_filexfer.png?raw=true)
 
 Grabbed it and checked it out, found the flag!
-!(pdf and flag)[https://github.com/crypticsilence/htb_business2022_ctf_writeups/blob/main/img/rogue-pdf_document.png?raw=true]
+![pdf and flag](https://github.com/crypticsilence/htb_business2022_ctf_writeups/blob/main/img/rogue-pdf_document.png?raw=true)
 
 HTB{n0th1ng_c4n_st4y_un3ncrypt3d_f0r3v3r}
 
-This took a lot longer than I had hoped because of the fact first off I was working with a bad zip file. I think when I extracted the from the ftp-data packets maybe I was missing a few at the bottom, or retransmissions messed it up, or somehow, I messed it up.  This actually happened twice, so I thought for sure I was supposed to use something to fish creds out of this corrupt minidump.  But, the 3rd time I extracted it everything started to come together.  The last part took a little tweaking to get it to work, but I knew I had everything I needed at that point.  Great challenge, lots of fun and a good learning experience!
+This took a lot longer than I had hoped because of the fact first off I was working with a bad zip file. I think when I extracted the from the ftp-data packets maybe I was missing a few at the bottom, or retransmissions messed it up, or somehow, I messed it up.  This actually happened twice, so at that point I thought that maybe I was supposed to figure out how to fish creds out of this corrupt minidump.  But, the 3rd time I extracted it everything started to come together.  The last part took a little tweaking to get it to work, but I knew I had everything I needed at that point.  Great challenge, lots of fun and a good learning experience!

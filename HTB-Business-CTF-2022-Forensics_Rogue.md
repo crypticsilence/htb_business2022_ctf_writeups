@@ -6,51 +6,49 @@ SecCorp has reached us about a recent cyber security incident. They are confiden
 
 This challenge consists a downloadable file only.  The zip file extracts to one Packet capture: `capture.pcapng`.
 
+### Packet Capture
 Browsed through the packet capture and found a few things.
 
-[pcap](https://	crypticsilenc3.github.com/repository/img/rogue-pcap_ntlm.png)
-
-
-Looked at the pcap, and investigated the tcp streams. The first transmission in the file is this connection on port 4444, looks like a reverse shell connection.  It has some commands run ni powershell:
+Looked at the pcap, and investigated the tcp streams. The first transmission in the file is this connection on port 4444, looks like a reverse shell connection.  It includes some commands run in powershell:
+[4444 cmds](https://github.com/crypticsilence/htb_business2022_ctf_writeups/blob/main/img/rogue-4444_1.png?raw=true)
 
 Looks like the attacker determined the user is a local admin, then used comsvcs.dll to dump the LSASS security process, to hopefully get some password hashes off this computer.  Then the file is zipped up and sent across FTP to windowsliveupdater.net.  The filename is 3858793632.zip.
 
-Was able to find this file upload in the pcap :
-
+Was able to find the file upload sequence in the pcap :
+[ftp login](https://github.com/crypticsilence/htb_business2022_ctf_writeups/blob/main/img/rogue-ftp_login.png?raw=true)
 
 To see the upload data itself, filter for ftp-data : 
+[ftp upload](https://github.com/crypticsilence/htb_business2022_ctf_writeups/blob/main/img/rogue-ftp_data.png?raw=true)
 
+To save the file to disk, select them all, then use *File - Export Specified Packets - Save*.
 
-To save the file to disk, select them all, then use File - Export Specified Packets - Save.
-
+### SMB
 Further down in the capture, I see SMB3 connection to the corporate ConfidentialShare..
-
+[confidential share](https://github.com/crypticsilence/htb_business2022_ctf_writeups/blob/main/img/rogue-smb_confidential_share.png?raw=true)
 
 It is not easy to decrypt SMB3, as the key is not transmitted in the traffic, but I found a good article:
 
-https://medium.com/maverislabs/decrypting-smb3-traffic-with-just-a-pcap-absolutely-maybe-712ed23ff6a2
+[Decrypting SMB Traffic with just a PCAP? Absolutely! Maybe..](https://medium.com/maverislabs/decrypting-smb3-traffic-with-just-a-pcap-absolutely-maybe-712ed23ff6a2)
 
 Per the article, this is what is needed to decrypt SMB3 traffic:
-```
--User’s password or NTLM hash
--User’s domain
--User’s username
--NTProofStr
--Key Exchange Key (Also known as the NTLMv2 Session Base Key)
--Encrypted Session Key
+- User’s password or NTLM hash
+- User’s domain
+- User’s username
+- NTProofStr
+- Key Exchange Key (Also known as the NTLMv2 Session Base Key)
+- Encrypted Session Key
 
 In summary, the Random Session Key can be calculated by:
 
--Unicode (utf-16le) of password
--MD4 hash of the above (This is also the NTLM Hash of the password)
--Unicode(utf-16le) and Uppercase of Username and Domain/Workgroup together 
--Calculating the ResponseKeyNT via HMAC_MD5(NTLM Hash, Unicode of User/Domain above)
--NTProofStr (can be calculated but not needed as it is present in the PCAP)
--Calculating the KeyExchangeKey via HMAC_MD5(ResponseKeyNT,NTProofStr)
--Decrypt the Encrypted Session Key via RC4 and the Key Exchange Key to finally get the Random Session Key
-```
+- Unicode (utf-16le) of password
+- MD4 hash of the above (This is also the NTLM Hash of the password)
+- Unicode(utf-16le) and Uppercase of Username and Domain/Workgroup together 
+- Calculating the ResponseKeyNT via HMAC_MD5(NTLM Hash, Unicode of User/Domain above)
+- NTProofStr (can be calculated but not needed as it is present in the PCAP)
+- Calculating the KeyExchangeKey via HMAC_MD5(ResponseKeyNT,NTProofStr)
+- Decrypt the Encrypted Session Key via RC4 and the Key Exchange Key to finally get the Random Session Key
 
-Pseudocode:
+### Pseudocode:
 ```
 user= “test” 
 domain= “workgroup”
@@ -67,19 +65,22 @@ RandomSessionKey = RC4(KeyExchangeKey,EncryptedSessionKey)
 # RandomSessionKey is 4462b99bb21423c29dbb4b4a983fde03
 ```
 
-The author mentioned MS Protocol Engineer Obaid Farooqi.  Watched some of his @ MS Talk on SMB 3.1.1 decryption and took some notes:
+At first, I tried to figure out the credentials and authentication that was being used. I wasn't even 100% sure it was NTLM, until I drilled down to the SecurityBlob and finally saw it:
+(securityblob)[https://github.com/crypticsilence/htb_business2022_ctf_writeups/blob/main/img/rogue-pcap_ntlm.png?raw=true]
 
--Fixed cipher in 3.0x: AES-128-CCM. Not flexible
--Ciphers are neogitated per connection.  This allows to retire old ciphers and add new ones
--Client can require encryption even if server does not.
--New sniffers needed --Netmon new decryption etc
--Can use ETW tracing thru Message Analyzer - does not use decryption, so it is immune to cipher changes
--MA uses ETW tracing to capture traffic before it is encrypted and after it is decrypted for inbound
+Since I really don't know much about this process, tried to dig a bit further and expand my knowledge on the topic.
+The author mentioned MS Protocol Engineer Obaid Farooqi.  Watched some of his @ MS Talk from 2015 (release of win10/svr2016) on SMB 3.1.1 decryption and took some notes:
+[SMB 3.1.1 Encryption and Decryption (with MA) by Obaid Farooqi](https://www.youtube.com/watch?v=aGG7cpLxdfQ)
 
--Computing the hash value:
-https://i.imgur.com/XJbNpT4.png
--Deriving secret keys from the hash value:
-https://i.imgur.com/f6d5euo.png
+- Fixed cipher in 3.0x: AES-128-CCM. Not flexible
+- Ciphers are neogitated per connection.  This allows to retire old ciphers and add new ones
+- Client can require encryption even if server does not.
+- New sniffers needed --Netmon new decryption etc
+- Can use ETW tracing thru Message Analyzer - does not use decryption, so it is immune to cipher changes
+- MA uses ETW tracing to capture traffic before it is encrypted and after it is decrypted for inbound
+
+* [Computing the hash value](https://i.imgur.com/XJbNpT4.png)
+* [Deriving secret keys from the hash value](https://i.imgur.com/f6d5euo.png)
 
 From the PCAP, I gathered the following data:
 ```
@@ -110,7 +111,7 @@ Hash.Type........: NetNTLMv2
 
 From looking in the minidump with strings, I found a possible password : y0Secure%
 
-This doesn't seem to be the password.  So, back to trying to crack the hash..  I was ultimately unsuccessful with Rockyou, best64.rule, using JTR and hashcat on a couple different machines.
+This doesn't seem to be the actual athomson user password.  So, back to trying to crack the hash..  I was ultimately unsuccessful with Rockyou, best64.rule, using JTR and hashcat on a couple different machines.
 
 So, the minidump seems like the obvious place to get a password.  However, the first time I extracted the ftp'd zip file from the PCAP, it showed it was a corrupt zip.  Tried to fix it with zip -FF and this worked to a point, but not good enough to actually use the minidump to get the hashes.. Later I was able to get a good zip and it extracted perfectly, but it was struggle street for a bit thinking I was supposed to be using this semi-corrupt zip file.  (In hindsight, it should have been obvious to re-save the file from the capture..)
 
@@ -163,6 +164,7 @@ filename:packagename:domain:user:NT:LM:SHA1:masterkey:sha1_masterkey:key_guid:pl
 3858793632_1.pmd:dpapi::::::fa1368d332e39fe5eb07d3a1600453e9f19170923369b104bc41cdef92dc469ff5bc39936d916f426273baa1ad9d86233d81fbb0864e343ca1f47811871c0e32:99c3409540732948afaedd1b6d7e7528c97978e9:094fa06d-8eae-4f0f-864a-009e98d06f6c:
 ```
 That was quite a sigh of relief. Burned a couple hours on playing around with a bad file.  I am not smart sometimes.
+Also, it created some .kirbi files for me, kerberos tickets.
 
 But, finally got what I needed, ntlm-style:
 
@@ -391,8 +393,11 @@ Nope, still not it. Shit.
 Tried with the Session ID backwards again, instead of copying the value, used what bytes I saw below in the raw data:
 `0x1500000000a00000`
 
-Actual VOILA!!!  Session decrypted.  Looked and there is a pdf copied.  Grabbed it and checked it out, found the flag!
+Actual VOILA!!!  Session decrypted.  Looked and there is a pdf file copied, in the SMB export dialog:
+(file xfer)[https://github.com/crypticsilence/htb_business2022_ctf_writeups/blob/main/img/rogue-smb3_filexfer.png?raw=true]
 
+Grabbed it and checked it out, found the flag!
+(pdf and flag)[https://github.com/crypticsilence/htb_business2022_ctf_writeups/blob/main/img/rogue-pdf_document.png?raw=true]
 HTB{n0th1ng_c4n_st4y_un3ncrypt3d_f0r3v3r}
 
 This took a lot longer than I had hoped because of the fact first off I was working with a bad zip file. I think when I extracted the from the ftp-data packets maybe I was missing a few at the bottom, or retransmissions messed it up, or somehow, I messed it up.  This actually happened twice, so I thought for sure I was supposed to use something to fish creds out of this corrupt minidump.  But, the 3rd time I extracted it everything started to come together.  The last part took a little tweaking to get it to work, but I knew I had everything I needed at that point.  Great challenge, lots of fun and a good learning experience!

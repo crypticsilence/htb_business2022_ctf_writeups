@@ -402,8 +402,11 @@ Nope, still not it. Shit.
 Tried with the Session ID backwards again, instead of copying the value, used what bytes I saw below in the raw data:
 `0x1500000000a00000`
 
-Actual VOILA!!!  Session decrypted.  Looked and there is a pdf file copied, in the SMB export dialog:
-![file xfer](https://github.com/crypticsilence/htb_business2022_ctf_writeups/blob/main/img/rogue-smb3_filexfer.png?raw=true)
+Actual VOILA!!!  Session decrypted.
+![session decrypted](https://github.com/crypticsilence/htb_business2022_ctf_writeups/blob/main/img/rogue-smb3_decrypted.png?raw=true)
+
+Looked and there is a pdf file copied, in the SMB export dialog:
+![corp document](https://github.com/crypticsilence/htb_business2022_ctf_writeups/blob/main/img/rogue-smb3_filexfer.png?raw=true)
 
 Grabbed it and checked it out, found the flag!
 ![pdf and flag](https://github.com/crypticsilence/htb_business2022_ctf_writeups/blob/main/img/rogue-pdf_document.png?raw=true)
